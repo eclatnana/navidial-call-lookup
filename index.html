@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ナビダイヤル着信履歴の確認</title>
+<style>
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; background: #F3F4F6; color: #1A1E2E; margin: 0; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: #6B7280; margin-bottom: 20px; }
+  .card { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input { flex: 1; min-width: 200px; font-size: 18px; padding: 10px 12px; border: 1px solid #D1D5DB; border-radius: 10px; }
+  button { font-size: 16px; padding: 10px 20px; border: 0; border-radius: 10px; background: #4F46E5; color: #fff; cursor: pointer; }
+  button:disabled { background: #A5B4FC; cursor: default; }
+  .msg { font-size: 16px; font-weight: 600; margin: 4px 0 12px; }
+  .err { color: #B91C1C; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #E5E7EB; }
+  th { color: #6B7280; font-weight: 600; font-size: 12px; }
+  .ok { color: #047857; font-weight: 600; }
+  .ng { color: #B91C1C; font-weight: 600; }
+  .note { font-size: 12px; color: #6B7280; line-height: 1.7; }
+  .remember { font-size: 13px; color: #4B5563; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .remember input { min-width: 0; flex: none; width: auto; }
+  .pwsaved { font-size: 12px; color: #6B7280; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ナビダイヤル着信履歴の確認</h1>
+  <div class="sub">0570-002-802 への着信があったかを、お客様の電話番号で確認できます（社内限定・パスワードが必要です）</div>
+
+  <div class="card">
+    <div class="row" id="pwrow" style="margin-bottom:10px">
+      <input id="pw" type="password" placeholder="社内パスワード" autocomplete="off" onkeydown="if(event.key==='Enter')go()">
+      <label class="remember"><input type="checkbox" id="remember" checked> このブラウザで記憶する</label>
+    </div>
+    <div class="pwsaved" id="pwsaved" style="display:none">パスワードは記憶済みです（<a href="#" onclick="forgetPw();return false;">入れ直す</a>）</div>
+    <div class="row">
+      <input id="num" type="tel" placeholder="例：090-1234-5678" autocomplete="off" onkeydown="if(event.key==='Enter')go()">
+      <button id="btn" onclick="go()">確認する</button>
+    </div>
+  </div>
+
+  <div class="card" id="out" style="display:none"></div>
+
+  <div class="note">
+    ・着信の記録は、毎朝クラウドで自動取得しています（PCの起動は不要です）。取得できなかった日の分は、翌朝以降にまとめて反映されます（約10日前の分まで）。<br>
+    ・確認できるのは、前日までの直近30日分です（毎朝更新。当日の着信は翌朝から確認できます）。<br>
+    ・非通知でかけた着信や、別の番号（会社の電話など）からの着信は見つかりません。<br>
+    ・電話番号はどこにも保存していません。照会した日時と件数のみ記録しています。<br>
+    ・パスワードは社外の人に伝えないでください。共用のPCでは「このブラウザで記憶する」のチェックを外してください。<br>
+    <span id="status"></span>
+  </div>
+</div>
+<script>
+// 検索はGoogle Apps Script（ログイン不要の窓口）に問い合わせる。データ・鍵・パスワードはこのページには含まれない
+var API_URL = 'https://script.google.com/macros/s/AKfycby-_lDmuLjb3pqGRFJnBJxK2mzmpbvJhzZGtD_y99oohyNTPdxnIsgojbCQSxJekWX-Zw/exec';
+function api(body) {
+  return fetch(API_URL, { method: 'POST', body: JSON.stringify(body), credentials: 'omit', redirect: 'follow' })
+    .then(function(res) { if (!res.ok) throw new Error('通信エラー（' + res.status + '）'); return res.json(); });
+}
+api({ action: 'status' }).then(function(st) {
+  if (!st || !st.expires) return;
+  var warn = st.daysLeft !== null && st.daysLeft <= 14;
+  document.getElementById('status').innerHTML = '・自動取得の設定期限（GitHubトークン）：<b' + (warn ? ' style="color:#B91C1C"' : '') + '>' + esc(st.expires)
+    + (st.daysLeft >= 0 ? '（あと' + st.daysLeft + '日）' : '（期限切れ）') + '</b>。期限の2週間前から鈴木にメールでお知らせします。';
+}).catch(function() {});
+var PW_KEY = 'navi_lookup_pw';
+function savedPw() { try { return localStorage.getItem(PW_KEY) || ''; } catch (e) { return ''; } }
+function showPwRow(show) {
+  document.getElementById('pwrow').style.display = show ? '' : 'none';
+  document.getElementById('pwsaved').style.display = show ? 'none' : '';
+}
+function forgetPw() { try { localStorage.removeItem(PW_KEY); } catch (e) {} showPwRow(true); document.getElementById('pw').focus(); }
+showPwRow(!savedPw());
+function esc(s) { return String(s).replace(/[&<>"]/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function go() {
+  var v = document.getElementById('num').value;
+  var typed = document.getElementById('pw').value;
+  var pw = savedPw() || typed;
+  if (!pw) { showPwRow(true); var o = document.getElementById('out'); o.style.display = ''; o.innerHTML = '<div class="msg err">社内パスワードを入力してください</div>'; return; }
+  var btn = document.getElementById('btn'), out = document.getElementById('out');
+  btn.disabled = true; btn.textContent = '確認中…';
+  api({ action: 'lookup', num: v, pw: pw })
+    .then(function(r) {
+      btn.disabled = false; btn.textContent = '確認する';
+      if (r.badPassword) { try { localStorage.removeItem(PW_KEY); } catch (e) {} showPwRow(true); }
+      else if (!savedPw() && typed && document.getElementById('remember').checked) { try { localStorage.setItem(PW_KEY, typed); } catch (e) {} showPwRow(false); }
+      show(r);
+    })
+    .catch(function(e) { btn.disabled = false; btn.textContent = '確認する'; out.style.display = ''; out.innerHTML = '<div class="msg err">' + esc(e.message || e) + '</div>'; });
+}
+function show(r) {
+  var out = document.getElementById('out');
+  out.style.display = '';
+  if (r.error) { out.innerHTML = '<div class="msg err">' + esc(r.error) + '</div>'; return; }
+  var period = r.from ? '（確認した期間：' + esc(r.from) + ' 〜 ' + esc(r.to) + '）' : '';
+  if (!r.rows.length) { out.innerHTML = '<div class="msg">この期間に、この番号からの着信はありませんでした</div><div class="note">' + period + '</div>'; return; }
+  var body = r.rows.map(function(x) {
+    var cls = x.result === 'つながった' ? 'ok' : 'ng';
+    return '<tr><td>' + esc(x.when) + '</td><td>' + esc(x.choice) + '</td><td class="' + cls + '">' + esc(x.result) + '</td><td>' + esc(x.talk) + '</td></tr>';
+  }).join('');
+  out.innerHTML = '<div class="msg">' + r.rows.length + '件の着信がありました</div><div class="note">' + period + '</div>'
+    + '<table><thead><tr><th>日時</th><th>ガイダンスの選択</th><th>結果</th><th>通話時間</th></tr></thead><tbody>' + body + '</tbody></table>';
+}
+</script>
+</body>
+</html>
