@@ -77,6 +77,13 @@ function showPwRow(show) {
 }
 function forgetPw() { try { localStorage.removeItem(PW_KEY); } catch (e) {} showPwRow(true); document.getElementById('pw').focus(); }
 showPwRow(!savedPw());
+// 「2026/11/18 10:23」→「2026/11/18（水）10:23」のように曜日を付ける
+function wd(s) {
+  return String(s).replace(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s*/, function(m, y, mo, d) {
+    var w = '日月火水木金土'.charAt(new Date(+y, +mo - 1, +d).getDay());
+    return y + '/' + mo + '/' + d + '（' + w + '）' + (m.length > y.length + mo.length + d.length + 2 ? ' ' : '');
+  });
+}
 function esc(s) { return String(s).replace(/[&<>"]/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function go() {
   var v = document.getElementById('num').value;
@@ -98,11 +105,11 @@ function show(r) {
   var out = document.getElementById('out');
   out.style.display = '';
   if (r.error) { out.innerHTML = '<div class="msg err">' + esc(r.error) + '</div>'; return; }
-  var period = r.from ? '（確認した期間：' + esc(r.from) + ' 〜 ' + esc(r.to) + '）' : '';
+  var period = r.from ? '（確認した期間：' + esc(wd(r.from)) + ' 〜 ' + esc(wd(r.to)) + '）' : '';
   if (!r.rows.length) { out.innerHTML = '<div class="msg">この期間に、この番号からの着信はありませんでした</div><div class="note">' + period + '</div>'; return; }
   var body = r.rows.map(function(x) {
     var cls = x.result === 'つながった' ? 'ok' : 'ng';
-    return '<tr><td>' + esc(x.when) + '</td><td>' + esc(x.choice) + '</td><td class="' + cls + '">' + esc(x.result) + '</td><td>' + esc(x.talk) + '</td></tr>';
+    return '<tr><td>' + esc(wd(x.when)) + '</td><td>' + esc(x.choice) + '</td><td class="' + cls + '">' + esc(x.result) + '</td><td>' + esc(x.talk) + '</td></tr>';
   }).join('');
   out.innerHTML = '<div class="msg">' + r.rows.length + '件の着信がありました</div><div class="note">' + period + '</div>'
     + '<table><thead><tr><th>日時</th><th>ガイダンスの選択</th><th>結果</th><th>通話時間</th></tr></thead><tbody>' + body + '</tbody></table>';
